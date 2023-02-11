@@ -1,0 +1,216 @@
+use("test")
+//create a copy of movies collection
+
+const pipeline =[{
+        $out: 'movies_copy'
+    }]
+db.movies.aggregate(pipeline)
+
+
+//Deleting documents
+//1. delete all movies where imdb rating is less than or equal to 2.
+
+db.movie_copy.deleteMany(
+    {"imdb.rating": {$lte: 2}}
+)
+
+/* delete one with sort option
+remove a movie with a high number of IMDB votes (>50000), 
+a low average rating of 3, and the least awards won. 
+display the title of deleted movie*/
+
+db.movies_copy.findOneAndDelete(
+    {"imdb.rating": {$lte:3},
+      "imdb.votes": {$gt:50000}
+    },
+    {"sort": {"awards.won":1},
+     "projection": {"title":1}
+    }
+)
+
+/*Updating Document with updatedOne()
+upate the movie Blacksmith Scene. change rate to PG-13 and year to 1894
+display updated document */
+
+db.movies_copy.find({"title": "Blacksmith Scene"})
+
+db.movies_copy.updateOne(
+    {"title":"Blacksmith Scene"},
+    {$set: {
+        "rated":"PG-13",
+        "year": 1894
+    }},
+    {
+        "returnedNewDocument": true
+    }
+)
+
+/*update one document with additional options
+ upate the movie Blacksmith Scene. Insert a new item latest into the document. */
+
+db.movies.findOneAndUpdate(
+    {"title": "Blacksmith Scene"},
+    {$set: {"latest": true}},
+    {
+        "returnedNewDocument": true,
+        "sort": {"_id": -1}
+    }
+)
+
+/* exercise 5.03 upate the imdb and tomatometer rating (page 254)
+upate imdb votes to 1565120, viewer's rating to 4.76 
+and numbe of reviews to 733773 for movie The Godfather
+display title, imdb and tomatoes rating*/
+
+db.movies.findOneAndUpdate(
+    {"title": "The Godfather"},
+    {$set: {
+            "imdb.votes": 1565120,
+            "tomatoes.viewer.rating": 4.76,
+            "tomotoes.viewer.numReviews": 733777
+    }
+    },
+    {$projection: {
+        "title":1,
+        "imdb":1,
+        "tomatoes":1,
+        "_id":0,
+        "returnNewDocument":true
+    },
+    }
+)
+
+//updating multiple documents with updateMany()
+//for movies, change rated from NOT RATED or Not Rated to UNRATED
+
+db.movies_copy.distinct("rated")
+
+db.movies_copy.updateMany({$or:
+    [{"rated": "NOT RATED"},
+     {"rated": "Not Rated"}]},
+    {$set: {"rated":"UNRATED"}}
+)
+
+//change all rated starting with TV (TV-14, TV-G, TV-MA, et.) to TV.
+
+db.movies_copy.updateMany(
+    {"rated": {$in: ["TV-14",
+  "TV-G",
+  "TV-MA",
+  "TV-PG",
+  "TV-Y7"]}},
+  {$set: {"rated": "TV"}}
+)
+
+//increment $inc
+//for The Godfather movie, increase viewer's rating by 1 and number of reviews by 10
+
+db.movies.find({"title": "The Godfather"})
+
+db.movies.findOneAndUpdate(
+    {"title": "The Godfather"},
+    {"$inc":
+        {"tomatoes.viewer.rating":1,
+        "tomatoes.viewer.numReviews":10}},
+    {"returnNewDocument": true}
+)
+
+//multiply ($mul)
+// for The Godfather movie, double the imdb rating
+
+db.movies_copy.findOneAndUpdate(
+    {"title": "The Godfather"},
+    {$mul: {"imdb.rating":2}},
+    {"returnNewDocument": true}
+)
+
+db.movies_copy.updateMany(
+    {"title": "The Godfather"},
+    {$mul: {"imdb.rating":2}},
+    {"returnNewDocument": true}
+)
+
+/*Rename ($rename)
+rennme can be used to move one field to and from nested documents.
+rename num_mflix_comments to comments and imdb.rating to rating */
+
+db.movies_copy.findOne()
+
+db.movies_copy.updateMany(
+    {},
+    {"$rename":{
+        "num_mflix_comments": "comments",
+        "imdb.rating": "rating"
+    }}
+)
+
+
+// move rating back into imdb category
+
+db.movies_copy.updateMany(
+    {},
+    {$rename:{
+        "rating": "imdb.rating"
+    }}
+)
+
+/* current date #currentdate. Should not put quotation around created_date
+add a new movie with a title "Tomorrow Never Die" and created_date as current date */
+
+db.movies_copy.find({"title": "Tomorrow Never Die"})
+
+db.movies_copy.findOneAndUpdate(
+    {"title": "Tomorrow Never Die version"},
+    {
+      $currentDate: {
+        created_date: true,
+        "last_updated.date": { $type: "date" },
+        "last_updated.timestamp": { $type: "timestamp" }
+      }}
+)
+
+db.movies_copy.findOneAndUpdate(
+    {"title": "Tomorrow Never Die"},
+    {
+      $currentDate: {
+        created_date: true,
+        "last_updated.date": { $type: "date" },
+        "last_updated.timestamp": { $type: "timestamp" }
+      }},
+      {
+          returnNewDocument: true,
+          upsert: true   //need to set upsert to true
+      }
+)
+
+//$currentDate will not work for inesertOne
+
+db.movies_copy.insertOne(
+    {"title": "Tomorrow Never Die 2",
+    $currentDate: {
+        created_date: true,
+        "last_updated.date": { $type: "date" },
+        "last_updated.timestamp": { $type: "timestamp" }
+      }}
+)
+
+//removing fields ($unset)
+// 12. remove created_date from Tomorrow Never Die
+
+db.movies_copy.findOneAndUpdate(
+    {"title": "Tomorrow Never Die"},
+    {$unset:{
+        "created_date": ""
+    }}
+)
+
+//13. Remove imdb id from the movies collection
+
+db.movies_copy.findOne()
+
+db.movies_copy.updateMany(
+    {},
+    {$unset:{
+        "imdb.id": ""
+    }}
+)
