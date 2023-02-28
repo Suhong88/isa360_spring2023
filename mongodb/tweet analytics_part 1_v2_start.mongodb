@@ -1,0 +1,135 @@
+//  this exercise is based on tweets I collected on climate change
+// download climate_change.json from canvas and import it into test database
+
+//check the totla number of tweets.
+
+db.climate_change.count()
+
+//check one tweet
+db.climate_change.findOne()
+
+//text search
+
+//create an index based on the field you want to search.
+
+
+db.climate_change.createIndex({text: "text"})
+
+//$text operator
+
+//find all tweets that include "air" or "pollution" in the text.
+
+// use("tweetsDB_v2")
+
+db.climate_change.find({$text: 
+    {$search: "air pollution"}
+},
+    {"text":1,
+    "created_at":1,
+    "_id":0
+}
+).count()
+
+
+//find all tweets that incldue "air pollution"
+
+db.climate_change.find({$text: 
+    {$search: "\"air pollution\""}
+},
+    {"text":1,
+    "created_at":1,
+    "_id":0
+}
+).count()
+
+//find all tweets that incldue "air pollution" but not "food"
+// sort the results in order by relevance score.
+
+const pipeline= [
+    {$match: {$text: 
+        {$search: "\"air pollution\" -food"}
+    }},
+    {$addFields: {score: {$meta: "textScore"}}},
+    {$sort: {score:-1}},
+    {$project:{
+        "text":1,
+        "score":1,
+        "created_at":1
+    }
+    }
+]
+
+db.climate_change.aggregate(pipeline)
+
+
+// find top 10 users based on number of tweets in this topic.
+
+
+
+
+// find more information about those users. number of follower and friends count
+
+
+
+
+//display top 10 users who received the most retweets.
+
+
+
+//display top 10 users who received the most mentions
+
+
+
+
+//display # of tweets by user location
+
+
+
+
+//find top 10 hashtags 
+
+const pipeline=[
+    {$addFields: {"textArray": {$split: ["$text", " "]}}},
+    {$unwind: "$textArray"},
+    {$addFields: {"textArray": {$toLower: "$textArray"}}},
+    {$match: {"textArray": {"$regex":"^#"}}},
+    {$match: {"textArray": {$nin: ["#climatechange", "#climatechangeisreal", "#globalwarming"]}}},
+    {$group: {
+        _id: {"hashtag": "$textArray"},
+        "frequency": {$sum:1}
+    }},
+    {$sort: {"frequency":-1}},
+    {$limit:10}
+]
+
+db.climate_change.aggregate(pipeline)
+
+
+// use hashtag entity
+
+
+
+
+// find top names mentioned in the text (use entities.annotations)
+
+
+
+// find top places mentioned in the text
+
+
+// find top organization mentioned in the text
+
+
+//find top products mentioned in the text
+
+
+// find other mentioned in the text
+
+
+
+//#number of tweets by weekday
+
+
+
+// top 10 hashtags by weekday
+

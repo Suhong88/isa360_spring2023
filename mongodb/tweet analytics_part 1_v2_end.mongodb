@@ -1,0 +1,347 @@
+//  this exercise is based on tweets I collected on climate change
+// download climate_change.json from canvas and import it into test database
+
+//check the totla number of tweets.
+
+db.climate_change.count()
+
+//check one tweet
+db.climate_change.findOne()
+
+//text search
+
+//create an index based on the field you want to search.
+
+
+db.climate_change.createIndex({text: "text"})
+
+//$text operator
+
+//find all tweets that include "air" or "pollution" in the text.
+
+// use("tweetsDB_v2")
+
+db.climate_change.find({$text: 
+    {$search: "air pollution"}
+},
+    {"text":1,
+    "created_at":1,
+    "_id":0
+}
+).count()
+
+
+//find all tweets that incldue "air pollution"
+
+db.climate_change.find({$text: 
+    {$search: "\"air pollution\""}
+},
+    {"text":1,
+    "created_at":1,
+    "_id":0
+}
+).count()
+
+//find all tweets that incldue "air pollution" but not "food"
+// sort the results in order by relevance score.
+
+const pipeline= [
+    {$match: {$text: 
+        {$search: "\"air pollution\" -food"}
+    }},
+    {$addFields: {score: {$meta: "textScore"}}},
+    {$sort: {score:-1}},
+    {$project:{
+        "text":1,
+        "score":1,
+        "created_at":1
+    }
+    }
+]
+
+db.climate_change.aggregate(pipeline)
+
+
+// find top 10 users based on number of tweets in this topic.
+
+db.climate_change.findOne()
+
+const pipeline =[
+  {$group: {
+    "_id": "$author.username",
+    "numTweets": {$sum:1}
+  }
+  },
+  {$sort: {"numTweets": -1}},
+  {$limit: 10}
+]
+
+db.climate_change.aggregate(pipeline)
+
+
+// find more information about those users. number of follower and friends count
+
+const pipeline =[
+  {$group: {
+    "_id": {"user":"$author.username", "followers_count": "$author.public_metrics.followers_count"},
+    "numTweets": {$sum:1}
+  }
+  },
+  {$sort: {"numTweets": -1}},
+  {$limit: 10}
+]
+
+db.climate_change.aggregate(pipeline)
+
+//display top 10 users who received the most retweets.
+
+
+db.climate_change.distinct('referenced_tweets.type')
+
+use("tweetsDB_v2")
+const pipeline=[
+    {$match:{"referenced_tweets.type":"retweeted"}},
+    {$group: {
+        _id: "$referenced_tweets.author.username",
+        "numRetweets": {$sum:1}
+    }},
+    {$sort: {"numRetweets":-1}},
+    {$limit:10},
+    {$project:{
+        "userName": "$_id",
+        "numRetweets":1,
+        "_id":0
+        }}
+]
+
+db.climate_change.aggregate(pipeline)
+
+//display top 10 users who received the most mentions
+
+
+db.climate_change.findOne()
+
+const pipeline=[
+    {$match: {"entities.mentions": {$ne:null}}},
+    {$unwind: "$entities.mentions"},
+    {$group: {
+        "_id": "$entities.mentions.username",
+        "numMentions": {$sum:1}
+    }},
+    {$sort: {"numMentions": -1}},
+    {$limit: 10},
+    {$project:{
+        "userName": "$_id",
+        "numMentions":1,
+        "_id":0
+        }}  
+]
+
+db.climate_change.aggregate(pipeline)
+
+//display # of tweets by user location
+
+const pipeline = [
+     {$match: {"author.location": {$ne: null}}},
+     {$group: {
+        "_id": "$author.location",
+        "numTweets": {$sum: 1}
+    }},
+    {$sort: {"numTweets":-1}},
+    {$limit:10},
+]
+db.climate_change.aggregate(pipeline)
+
+
+//find top 10 hashtags 
+
+const pipeline=[
+    {$addFields: {"textArray": {$split: ["$text", " "]}}},
+    {$unwind: "$textArray"},
+    {$addFields: {"textArray": {$toLower: "$textArray"}}},
+    {$match: {"textArray": {"$regex":"^#"}}},
+    {$match: {"textArray": {$nin: ["#climatechange", "#climatechangeisreal", "#globalwarming"]}}},
+    {$group: {
+        _id: {"hashtag": "$textArray"},
+        "frequency": {$sum:1}
+    }},
+    {$sort: {"frequency":-1}},
+    {$limit:10}
+]
+
+db.climate_change.aggregate(pipeline)
+
+
+// use hashtag entity
+
+db.climate_change.distinct("entities")
+
+use("tweetsDB_v2")
+const pipeline =[
+    {$unwind: "$entities.hashtags"},
+    {$addFields: {"hashtags": {$toLower: "$entities.hashtags.tag"}}},
+    {$match: {"hashtags": {$nin: ["climatechange", "climatechangeisreal", "globalwarming"]}}},
+    {$group: {
+        _id: {"hashtag": "$hashtags"},
+        "frequency": {$sum:1}
+    }},
+    {$sort: {"frequency":-1}},
+    {$limit:10}
+]
+
+db.climate_change.aggregate(pipeline)
+
+
+// find top names mentioned in the text (use entities.annotations)
+
+db.climate_change.distinct("entities.annotations.type")
+
+db.climate_change.findOne()
+
+const pipeline =[
+    {$unwind: "$entities.annotations"},
+    {$addFields: {"type": {$toLower: "$entities.annotations.type"}}},
+    {$addFields: {"normalized_text": {$toLower: "$entities.annotations.normalized_text"}}},
+    {$group: {
+        _id: {"type": "$type"},
+        "entity_list": {$push:"$normalized_text"}
+    }},
+    {$match: {"_id.type": "person"}},
+    {$unwind: "$entity_list"},
+    {$group:{
+        "_id":"$entity_list",
+        "frequency": {$sum:1}
+    }},
+    {$sort: {"frequency":-1}},
+    {$limit:10}
+]
+db.climate_change.aggregate(pipeline)
+
+// find top places mentioned in the text
+
+const pipeline =[
+    {$unwind: "$entities.annotations"},
+    {$addFields: {"type": {$toLower: "$entities.annotations.type"}}},
+    {$addFields: {"normalized_text": {$toLower: "$entities.annotations.normalized_text"}}},
+    {$group: {
+        _id: {"type": "$type"},
+        "entity_list": {$push:"$normalized_text"}
+    }},
+    {$match: {"_id.type": "place"}},
+    {$unwind: "$entity_list"},
+    {$group:{
+        "_id":"$entity_list",
+        "frequency": {$sum:1}
+    }},
+    {$sort: {"frequency":-1}},
+    {$limit:10}
+]
+db.climate_change.aggregate(pipeline)
+
+// find top organization mentioned in the text
+
+const pipeline =[
+    {$unwind: "$entities.annotations"},
+    {$addFields: {"type": {$toLower: "$entities.annotations.type"}}},
+    {$addFields: {"normalized_text": {$toLower: "$entities.annotations.normalized_text"}}},
+    {$group: {
+        _id: {"type": "$type"},
+        "entity_list": {$push:"$normalized_text"}
+    }},
+    {$match: {"_id.type": "organization"}},
+    {$unwind: "$entity_list"},
+    {$group:{
+        "_id":"$entity_list",
+        "frequency": {$sum:1}
+    }},
+    {$sort: {"frequency":-1}},
+    {$limit:10}
+]
+db.climate_change.aggregate(pipeline)
+
+//find top products mentioned in the text
+
+const pipeline =[
+    {$unwind: "$entities.annotations"},
+    {$addFields: {"type": {$toLower: "$entities.annotations.type"}}},
+    {$addFields: {"normalized_text": {$toLower: "$entities.annotations.normalized_text"}}},
+    {$group: {
+        _id: {"type": "$type"},
+        "entity_list": {$push:"$normalized_text"}
+    }},
+    {$match: {"_id.type": "product"}},
+    {$unwind: "$entity_list"},
+    {$group:{
+        "_id":"$entity_list",
+        "frequency": {$sum:1}
+    }},
+    {$sort: {"frequency":-1}},
+    {$limit:15}
+]
+db.climate_change.aggregate(pipeline)
+
+
+// find other mentioned in the text
+
+const pipeline =[
+    {$unwind: "$entities.annotations"},
+    {$addFields: {"type": {$toLower: "$entities.annotations.type"}}},
+    {$addFields: {"normalized_text": {$toLower: "$entities.annotations.normalized_text"}}},
+    {$group: {
+        _id: {"type": "$type"},
+        "entity_list": {$push:"$normalized_text"}
+    }},
+    {$match: {"_id.type": "other"}},
+    {$unwind: "$entity_list"},
+    {$group:{
+        "_id":"$entity_list",
+        "frequency": {$sum:1}
+    }},
+    {$sort: {"frequency":-1}},
+    {$limit:10}
+]
+db.climate_change.aggregate(pipeline)
+
+
+//#number of tweets by weekday
+
+const pipeline=[
+  {"$addFields": {"weekday": {"$dayOfWeek": {"$toDate": "$created_at"}}}},
+  {$group: {
+    _id: "$weekday",
+    count: {$sum:1}
+  }},
+  {$sort: {"_id": 1}},
+  {$project: {
+      "weekday": "$_id",
+      "count":1,
+      "_id": 0
+  }}
+  ]
+
+db.climate_change.aggregate(pipeline)
+
+
+// top 10 hashtags by weekday
+
+const pipeline=[
+    {"$addFields": {"weekday": {"$dayOfWeek": {"$toDate": "$created_at"}}}},
+    {$unwind: "$entities.hashtags"},
+    {$addFields: {"hashtags": {$toLower: "$entities.hashtags.tag"}}},
+    {$match: {"hashtags": {$nin: ["climatechange", "climatechangeisreal", "globalwarming"]}}},
+    {"$group": {
+        "_id": {"weekday": "$weekday", "hashtag":"$hashtags"},
+        "frequency": {"$sum":1}
+    }},
+    {"$sort": {"frequency":-1}},
+    {"$group":{
+        "_id": "$_id.weekday",
+        "hashtags": {"$push": {"hashtag": "$_id.hashtag", "frequency": "$frequency"}}
+    }},
+    {"$sort": {"_id":1}},
+    {"$project":{
+        "top10Hashtags": {"$slice":["$hashtags", 0, 10]}
+    }},
+    ]
+
+db.climate_change.aggregate(pipeline)
