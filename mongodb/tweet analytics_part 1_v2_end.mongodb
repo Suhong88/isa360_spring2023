@@ -81,6 +81,7 @@ db.climate_change.aggregate(pipeline)
 
 // find more information about those users. number of follower and friends count
 
+//wrong solution
 const pipeline =[
   {$group: {
     "_id": {"user":"$author.username", "followers_count": "$author.public_metrics.followers_count"},
@@ -93,12 +94,35 @@ const pipeline =[
 
 db.climate_change.aggregate(pipeline)
 
+//correct solution
+
+db.climate_change.findOne()
+
+const pipeline =[
+  {$group: {
+    "_id": "$author.username",
+    "numTweets": {$sum:1},
+    "user_info":{$push:{"followers_count":"$author.public_metrics.followers_count", 
+                         "following_count": "$author.public_metrics.following_count"}}
+  }
+  },
+  {$sort: {"numTweets": -1}},
+  {$limit: 10},
+  {$project: {
+    "user_name": "$_id",
+    "numTweets":1,
+    "followers_count": {$max: "$user_info.followers_count"},
+    "following_count": {$max: "$user_info.following_count"}
+  }}
+]
+
+db.climate_change.aggregate(pipeline)
+
 //display top 10 users who received the most retweets.
 
 
 db.climate_change.distinct('referenced_tweets.type')
 
-use("tweetsDB_v2")
 const pipeline=[
     {$match:{"referenced_tweets.type":"retweeted"}},
     {$group: {
@@ -116,13 +140,36 @@ const pipeline=[
 
 db.climate_change.aggregate(pipeline)
 
+// find more information about those users. number of follower and friends count
+
+const pipeline=[
+    {$match:{"referenced_tweets.type":"retweeted"}},
+    {$group: {
+        _id: "$referenced_tweets.author.username",
+        "numRetweets": {$sum:1},
+         "user_info":{$push:{"followers_count":"$referenced_tweets.author.public_metrics.followers_count", 
+                         "following_count": "$referenced_tweets.author.public_metrics.following_count"}}
+    }},
+    {$sort: {"numRetweets":-1}},
+    {$limit:10},
+    {$project: {
+    "user_name": "$_id",
+    "numTweets":1,
+    "followers_count": {$max: "$user_info.followers_count"},
+    "following_count": {$max: "$user_info.following_count"}
+  }}
+]
+
+db.climate_change.aggregate(pipeline)
+
+
 //display top 10 users who received the most mentions
 
 
 db.climate_change.findOne()
 
 const pipeline=[
-    {$match: {"entities.mentions": {$ne:null}}},
+  //  {$match: {"entities.mentions": {$ne:null}}},
     {$unwind: "$entities.mentions"},
     {$group: {
         "_id": "$entities.mentions.username",
